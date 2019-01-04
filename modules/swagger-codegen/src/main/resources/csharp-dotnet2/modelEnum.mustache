@@ -1,3 +1,4 @@
+namespace {{modelPackage}} {
     /// <summary>
     /// {{^description}}Defines {{{name}}}{{/description}}{{#description}}{{description}}{{/description}}
     /// </summary>
@@ -17,3 +18,4 @@
         {{name}}{{^isString}} = {{{value}}}{{/isString}}{{#isString}} = {{-index}}{{/isString}}{{^-last}},
         {{/-last}}{{/enumVars}}{{/allowableValues}}
     }{{! NOTE: This model's enumVars is modified to look like CodegenProperty}}
+}
