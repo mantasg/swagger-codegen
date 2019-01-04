@@ -3,9 +3,6 @@ package io.swagger.codegen.languages;
 import com.google.common.collect.ImmutableMap;
 import com.samskivert.mustache.Mustache;
 import io.swagger.codegen.*;
-import io.swagger.models.Model;
-import io.swagger.models.properties.ArrayProperty;
-import io.swagger.models.properties.Property;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -498,62 +495,6 @@ public class CSharpClientCodegen extends AbstractCSharpCodegen {
         this.optionalAssemblyInfoFlag = flag;
     }
 
-    @Override
-    public CodegenModel fromModel(String name, Model model, Map<String, Model> allDefinitions) {
-        CodegenModel codegenModel = super.fromModel(name, model, allDefinitions);
-        if (allDefinitions != null && codegenModel != null && codegenModel.parent != null) {
-            final Model parentModel = allDefinitions.get(toModelName(codegenModel.parent));
-            if (parentModel != null) {
-                final CodegenModel parentCodegenModel = super.fromModel(codegenModel.parent, parentModel);
-                if (codegenModel.hasEnums) {
-                    codegenModel = this.reconcileInlineEnums(codegenModel, parentCodegenModel);
-                }
-
-                Map<String, CodegenProperty> propertyHash = new HashMap<>(codegenModel.vars.size());
-                for (final CodegenProperty property : codegenModel.vars) {
-                    propertyHash.put(property.name, property);
-                }
-
-                for (final CodegenProperty property : codegenModel.readWriteVars) {
-                    if (property.defaultValue == null && property.baseName.equals(parentCodegenModel.discriminator)) {
-                        property.defaultValue = "\"" + name + "\"";
-                    }
-                }
-
-                CodegenProperty last = null;
-                for (final CodegenProperty property : parentCodegenModel.vars) {
-                    // helper list of parentVars simplifies templating
-                    if (!propertyHash.containsKey(property.name)) {
-                        final CodegenProperty parentVar = property.clone();
-                        parentVar.isInherited = true;
-                        parentVar.hasMore = true;
-                        last = parentVar;
-                        LOGGER.info("adding parent variable {}", property.name);
-                        codegenModel.parentVars.add(parentVar);
-                    }
-                }
-
-                if (last != null) {
-                    last.hasMore = false;
-                }
-            }
-        }
-
-        // Cleanup possible duplicates. Currently, readWriteVars can contain the same property twice. May or may not be isolated to C#.
-        if (codegenModel != null && codegenModel.readWriteVars != null && codegenModel.readWriteVars.size() > 1) {
-            int length = codegenModel.readWriteVars.size() - 1;
-            for (int i = length; i > (length / 2); i--) {
-                final CodegenProperty codegenProperty = codegenModel.readWriteVars.get(i);
-                // If the property at current index is found earlier in the list, remove this last instance.
-                if (codegenModel.readWriteVars.indexOf(codegenProperty) < i) {
-                    codegenModel.readWriteVars.remove(i);
-                }
-            }
-        }
-
-        return codegenModel;
-    }
-
     public void setOptionalProjectFileFlag(boolean flag) {
         this.optionalProjectFileFlag = flag;
     }
@@ -618,54 +559,6 @@ public class CSharpClientCodegen extends AbstractCSharpCodegen {
             this.targetFramework = dotnetFramework;
         }
         LOGGER.info("Generating code for .NET Framework " + this.targetFramework);
-    }
-
-    private CodegenModel reconcileInlineEnums(CodegenModel codegenModel, CodegenModel parentCodegenModel) {
-        // This generator uses inline classes to define enums, which breaks when
-        // dealing with models that have subTypes. To clean this up, we will analyze
-        // the parent and child models, look for enums that match, and remove
-        // them from the child models and leave them in the parent.
-        // Because the child models extend the parents, the enums will be available via the parent.
-
-        // Only bother with reconciliation if the parent model has enums.
-        if (parentCodegenModel.hasEnums) {
-
-            // Get the properties for the parent and child models
-            final List<CodegenProperty> parentModelCodegenProperties = parentCodegenModel.vars;
-            List<CodegenProperty> codegenProperties = codegenModel.vars;
-
-            // Iterate over all of the parent model properties
-            boolean removedChildEnum = false;
-            for (CodegenProperty parentModelCodegenPropery : parentModelCodegenProperties) {
-                // Look for enums
-                if (parentModelCodegenPropery.isEnum) {
-                    // Now that we have found an enum in the parent class,
-                    // and search the child class for the same enum.
-                    Iterator<CodegenProperty> iterator = codegenProperties.iterator();
-                    while (iterator.hasNext()) {
-                        CodegenProperty codegenProperty = iterator.next();
-                        if (codegenProperty.isEnum && codegenProperty.equals(parentModelCodegenPropery)) {
-                            // We found an enum in the child class that is
-                            // a duplicate of the one in the parent, so remove it.
-                            iterator.remove();
-                            removedChildEnum = true;
-                        }
-                    }
-                }
-            }
-
-            if (removedChildEnum) {
-                // If we removed an entry from this model's vars, we need to ensure hasMore is updated
-                int count = 0, numVars = codegenProperties.size();
-                for (CodegenProperty codegenProperty : codegenProperties) {
-                    count += 1;
-                    codegenProperty.hasMore = count < numVars;
-                }
-                codegenModel.vars = codegenProperties;
-            }
-        }
-
-        return codegenModel;
     }
 
     @Override
